@@ -1,5 +1,5 @@
-from fastapi import FastAPI
-from routes import extract_router, match_router
+from fastapi import FastAPI, File, UploadFile
+from core.audio_utils import process_audio
 
 app = FastAPI(title="DSP Service")
 
@@ -7,5 +7,8 @@ app = FastAPI(title="DSP Service")
 def read_root():
     return {"Hello": "World"}
 
-app.include_router(extract_router)
-app.include_router(match_router)
+@app.post("/extract", tags=["Extract"])
+async def extract_audio_peaks(audio: UploadFile = File(...)):
+    audio_bytes = await audio.read()
+    fingerprints = process_audio(audio_bytes)
+    return {"status": "Peaks extracted and audio processed", "fingerprints": fingerprints}
