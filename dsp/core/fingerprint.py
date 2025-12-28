@@ -19,10 +19,15 @@ def fingerprint(peaks, fan_value=3, min_dt=0.04, max_dt=1.2):
                 break
 
             dt_ms = int(round(dt * 1000))
+            t1_ms = int(round(t1 * 1000))
             f1_q = int(round(f1))
             f2_q = int(round(f2))
 
-            fingerprints.append((f1_q, f2_q, dt_ms))
+            if dt_ms == 0:
+                j += 1
+                continue
+
+            fingerprints.append((f1_q, f2_q, dt_ms, t1_ms))
 
             neighbors += 1
             if neighbors >= fan_value:
