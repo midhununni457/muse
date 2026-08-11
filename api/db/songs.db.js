@@ -29,3 +29,12 @@ async function deleteSong(id) {
         where: {id: Number(id)}
     })
 }
+
+module.exports = {
+    getAllSongs,
+    getSongById,
+    addSong,
+    updateSongUrl,
+    deleteSong
+};
+

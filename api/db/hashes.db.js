@@ -29,7 +29,16 @@ async function addManyHashes(hashes) {
 }
 
 async function deleteHashOfSong(songId) {
-  return await prisma.hashes.delete({
+  return await prisma.hashes.deleteMany({
     where: { songId: Number(songId) },
   });
 }
+
+module.exports = {
+  getAllHashesOfSong,
+  getHashMatches,
+  addHash,
+  addManyHashes,
+  deleteHashOfSong,
+};
+

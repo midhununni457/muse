@@ -12,3 +12,8 @@ async def extract_audio_peaks(audio: UploadFile = File(...)):
     audio_bytes = await audio.read()
     fingerprints = process_audio(audio_bytes)
     return {"status": "Peaks extracted and audio processed", "fingerprints": fingerprints}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
