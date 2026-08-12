@@ -8,3 +8,8 @@ function unpackHash(hash) {
     const f1 = Number(hash >> 32n);
     return { f1, f2, dt };
 }
+
+module.exports = {
+    packHash,
+    unpackHash,
+};
