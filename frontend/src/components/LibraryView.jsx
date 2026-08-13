@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Music, Trash2, Cpu, CheckCircle, AlertCircle, RefreshCw, Upload, Calendar } from 'lucide-react';
+import { Plus, Music, Trash2, Cpu, AlertCircle, RefreshCw, Upload, Calendar } from 'lucide-react';
 
 export default function LibraryView() {
   const [songs, setSongs] = useState([]);
@@ -34,7 +34,6 @@ export default function LibraryView() {
     }
   };
 
-  // Upload Song and automatically process
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!title || !artist || !audioFile) {
@@ -68,7 +67,6 @@ export default function LibraryView() {
       setUploadStatus('Processing audio fingerprints with DSP engine...');
       await triggerProcessing(newSong.id);
 
-      // Reset form & reload list
       setTitle('');
       setArtist('');
       setAudioFile(null);
@@ -83,7 +81,6 @@ export default function LibraryView() {
     }
   };
 
-  // Trigger processing for a specific song ID
   const triggerProcessing = async (songId) => {
     setProcessingIds((prev) => ({ ...prev, [songId]: true }));
     try {
@@ -103,7 +100,6 @@ export default function LibraryView() {
     }
   };
 
-  // Delete Song
   const handleDelete = async (songId) => {
     if (!window.confirm('Are you sure you want to delete this song and its fingerprints?')) {
       return;
@@ -122,19 +118,19 @@ export default function LibraryView() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="flex flex-col gap-6">
       
-      {/* Upload New Song Section */}
-      <div className="glass-panel" style={{ padding: '24px' }}>
-        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Plus size={20} color="var(--primary)" />
+      {/* Upload Song Card */}
+      <div className="glass-panel p-6">
+        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <Plus size={20} className="text-violet-400" />
           <span>Ingest New Song into Library</span>
         </h3>
 
-        <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+        <form onSubmit={handleUpload} className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">
                 Song Title
               </label>
               <input
@@ -143,12 +139,12 @@ export default function LibraryView() {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Bohemian Rhapsody"
                 required
-                className="input-field"
+                className="w-full px-4 py-2.5 bg-slate-950/80 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">
                 Artist Name
               </label>
               <input
@@ -157,13 +153,13 @@ export default function LibraryView() {
                 onChange={(e) => setArtist(e.target.value)}
                 placeholder="e.g. Queen"
                 required
-                className="input-field"
+                className="w-full px-4 py-2.5 bg-slate-950/80 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5">
               Full Track Audio File (.mp3, .wav, .flac)
             </label>
             <input
@@ -171,13 +167,12 @@ export default function LibraryView() {
               accept="audio/*"
               onChange={(e) => setAudioFile(e.target.files[0] || null)}
               required
-              className="input-field"
-              style={{ padding: '8px' }}
+              className="w-full p-2 bg-slate-950/80 border border-white/10 rounded-xl text-white text-sm file:mr-4 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-violet-600 file:text-white hover:file:bg-violet-500 cursor-pointer"
             />
           </div>
 
           {uploadStatus && (
-            <div style={{ fontSize: '0.9rem', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="flex items-center gap-2 text-sm text-cyan-400 font-medium">
               <RefreshCw size={16} className="animate-spin" />
               <span>{uploadStatus}</span>
             </div>
@@ -186,8 +181,7 @@ export default function LibraryView() {
           <button
             type="submit"
             disabled={isUploading}
-            className="btn btn-primary"
-            style={{ alignSelf: 'flex-start', marginTop: '8px' }}
+            className="self-start mt-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-violet-600/30 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload size={18} />
             <span>{isUploading ? 'Ingesting Song...' : 'Upload & Process Song'}</span>
@@ -195,74 +189,57 @@ export default function LibraryView() {
         </form>
       </div>
 
-      {/* Song Library List Section */}
-      <div className="glass-panel" style={{ padding: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+      {/* Library Song List */}
+      <div className="glass-panel p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Library Tracks ({songs.length})</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Manage ingested songs available for pattern recognition</p>
+            <h3 className="text-lg font-bold text-white">Library Tracks ({songs.length})</h3>
+            <p className="text-xs text-slate-400">Manage ingested songs available for pattern recognition</p>
           </div>
 
-          <button onClick={fetchSongs} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+          <button
+            onClick={fetchSongs}
+            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
             <RefreshCw size={14} />
             <span>Refresh</span>
           </button>
         </div>
 
         {loading ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 8px' }} />
-            <p>Loading song library...</p>
+          <div className="p-8 text-center text-slate-400">
+            <RefreshCw size={28} className="animate-spin mx-auto mb-2 text-violet-500" />
+            <p className="text-sm">Loading song library...</p>
           </div>
         ) : error ? (
-          <div style={{ padding: '20px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: '#f87171', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertCircle size={20} />
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-2">
+            <AlertCircle size={18} />
             <span>{error}</span>
           </div>
         ) : songs.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <Music size={40} style={{ opacity: 0.3, margin: '0 auto 12px' }} />
-            <p style={{ fontWeight: 600 }}>Your song library is empty.</p>
-            <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>Upload a song above to start building your recognition database.</p>
+          <div className="p-10 text-center text-slate-500">
+            <Music size={40} className="opacity-30 mx-auto mb-3" />
+            <p className="font-semibold text-slate-400">Your song library is empty.</p>
+            <p className="text-xs text-slate-500 mt-1">Upload a song above to start building your recognition database.</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="flex flex-col gap-3">
             {songs.map((song) => {
               const isProcessing = processingIds[song.id];
               return (
                 <div
                   key={song.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '16px',
-                    borderRadius: '12px',
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    border: '1px solid var(--border-glass)',
-                    flexWrap: 'wrap',
-                    gap: '12px'
-                  }}
+                  className="flex flex-wrap items-center justify-between p-4 rounded-xl bg-slate-950/60 border border-white/10 gap-3 hover:border-white/20 transition-all"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '200px' }}>
-                    <div style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: '10px',
-                      background: 'rgba(139, 92, 246, 0.15)',
-                      border: '1px solid rgba(139, 92, 246, 0.3)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--primary)'
-                    }}>
+                  <div className="flex items-center gap-3.5 flex-1 min-w-[200px]">
+                    <div className="w-11 h-11 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400 shrink-0">
                       <Music size={22} />
                     </div>
 
                     <div>
-                      <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{song.title}</h4>
-                      <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>{song.artist}</p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '4px' }}>
+                      <h4 className="text-base font-bold text-white">{song.title}</h4>
+                      <p className="text-xs sm:text-sm text-slate-400 font-medium">{song.artist}</p>
+                      <div className="flex items-center gap-1.5 text-[0.75rem] text-slate-500 mt-1">
                         <Calendar size={12} />
                         <span>Added {new Date(song.createdAt).toLocaleDateString()}</span>
                       </div>
@@ -270,23 +247,21 @@ export default function LibraryView() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className="flex items-center gap-2">
                     
                     <button
                       onClick={() => triggerProcessing(song.id)}
                       disabled={isProcessing}
-                      className="btn btn-secondary"
-                      style={{ fontSize: '0.82rem', padding: '6px 12px' }}
+                      className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                       title="Re-process audio fingerprints"
                     >
-                      <Cpu size={14} className={isProcessing ? 'animate-spin' : ''} />
+                      <Cpu size={14} className={isProcessing ? 'animate-spin text-violet-400' : ''} />
                       <span>{isProcessing ? 'Processing...' : 'Re-process'}</span>
                     </button>
 
                     <button
                       onClick={() => handleDelete(song.id)}
-                      className="btn btn-danger"
-                      style={{ padding: '8px' }}
+                      className="p-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 rounded-lg text-red-400 transition-colors cursor-pointer"
                       title="Delete song"
                     >
                       <Trash2 size={16} />
