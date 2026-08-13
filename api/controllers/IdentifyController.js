@@ -55,7 +55,7 @@ class IdentifyController {
       console.error('Error identifying audio clip:', error);
       return res.status(500).json({ error: error.message });
     } finally {
-      // Clean up uploaded temporary clip file
+      // Clean up temporary clip file
       if (clipPath && fs.existsSync(clipPath)) {
         try {
           fs.unlinkSync(clipPath);

@@ -2,14 +2,7 @@ const { packHash } = require('./hash');
 const { getHashMatches } = require('../db/hashes.db');
 const { getSongById } = require('../db/songs.db');
 
-/**
- * Shazam-style offset histogram matching algorithm.
- *
- * @param {Array<[number, number, number, number]>} fingerprints - List of [f1, f2, dt_ms, t1_clip_ms] tuples.
- * @param {Object} [options]
- * @param {number} [options.minPeakThreshold=5] - Minimum required peak count to declare a match.
- * @returns {Promise<{ match: Object|null, confidence: number, peakCount: number, alignOffsetMs: number|null, candidates: Array }>}
- */
+// Shazam-style offset histogram clip matching algorithm
 async function matchClip(fingerprints, options = {}) {
   const minPeakThreshold = options.minPeakThreshold ?? 5;
 
@@ -24,7 +17,7 @@ async function matchClip(fingerprints, options = {}) {
     };
   }
 
-  // 1. Build map of hash -> Array of t1_clip offsets
+  // Map clip hashes to offsets
   const clipHashMap = new Map();
   for (const [f1, f2, dt, t1_clip] of fingerprints) {
     const hash = packHash(f1, f2, dt);
@@ -46,7 +39,7 @@ async function matchClip(fingerprints, options = {}) {
     };
   }
 
-  // 2. Query database for matching hashes
+  // Fetch hash matches from database
   const matches = await getHashMatches(uniqueHashes);
   if (!matches || matches.length === 0) {
     return {
@@ -59,8 +52,7 @@ async function matchClip(fingerprints, options = {}) {
     };
   }
 
-  // 3. Accumulate per-song time-delta histograms
-  // songHistograms: Map<songId, Map<deltaMs, count>>
+  // Build time-delta histograms per candidate song
   const songHistograms = new Map();
 
   for (const matchRow of matches) {
@@ -80,7 +72,7 @@ async function matchClip(fingerprints, options = {}) {
     }
   }
 
-  // 4. Calculate peak delta count for each candidate song
+  // Score candidates by peak delta frequency
   const candidateScores = [];
 
   for (const [songId, histogram] of songHistograms.entries()) {
@@ -104,7 +96,6 @@ async function matchClip(fingerprints, options = {}) {
     });
   }
 
-  // Sort candidate songs by peak count descending
   candidateScores.sort((a, b) => b.peakCount - a.peakCount);
 
   if (candidateScores.length === 0) {
@@ -120,7 +111,6 @@ async function matchClip(fingerprints, options = {}) {
 
   const topCandidate = candidateScores[0];
 
-  // 5. Verify against minimum peak threshold
   if (topCandidate.peakCount < minPeakThreshold) {
     return {
       match: null,
@@ -132,7 +122,6 @@ async function matchClip(fingerprints, options = {}) {
     };
   }
 
-  // 6. Fetch matching song details from database
   const song = await getSongById(topCandidate.songId);
   const confidence = topCandidate.peakCount / fingerprints.length;
 
