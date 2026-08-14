@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  dsp:
+    build:
+      context: ./dsp
+      dockerfile: Dockerfile
+    container_name: muse-dsp
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: muse-api
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DSP_SERVICE_URL=http://dsp:8000
+      - DATABASE_URL=${DATABASE_URL}
+      - DIRECT_URL=${DIRECT_URL}
+    depends_on:
+      - dsp
+    restart: unless-stopped

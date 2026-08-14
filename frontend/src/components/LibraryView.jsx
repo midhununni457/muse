@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Music, Trash2, Cpu, AlertCircle, RefreshCw, Upload, Calendar } from 'lucide-react';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
 export default function LibraryView() {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +24,7 @@ export default function LibraryView() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/songs');
+      const res = await fetch(`${API_BASE}/songs`);
       if (!res.ok) throw new Error('Failed to fetch song library');
       const data = await res.json();
       setSongs(data);
@@ -51,7 +53,7 @@ export default function LibraryView() {
 
     try {
       // 1. Upload Song
-      const res = await fetch('/api/songs', {
+      const res = await fetch(`${API_BASE}/songs`, {
         method: 'POST',
         body: formData,
       });
@@ -84,7 +86,7 @@ export default function LibraryView() {
   const triggerProcessing = async (songId) => {
     setProcessingIds((prev) => ({ ...prev, [songId]: true }));
     try {
-      const res = await fetch(`/api/songs/${songId}/process`, {
+      const res = await fetch(`${API_BASE}/songs/${songId}/process`, {
         method: 'POST',
       });
       if (!res.ok) {
@@ -106,7 +108,7 @@ export default function LibraryView() {
     }
 
     try {
-      const res = await fetch(`/api/songs/${songId}`, {
+      const res = await fetch(`${API_BASE}/songs/${songId}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Failed to delete song');

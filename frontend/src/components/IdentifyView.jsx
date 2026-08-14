@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Upload, Sparkles, Music2, AlertCircle, RefreshCw, CheckCircle2, Clock } from 'lucide-react';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
 export default function IdentifyView() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -85,7 +87,7 @@ export default function IdentifyView() {
     formData.append('audio', audioBlobOrFile, filename);
 
     try {
-      const res = await fetch('/api/identify', {
+      const res = await fetch(`${API_BASE}/identify`, {
         method: 'POST',
         body: formData,
       });
