@@ -1,4 +1,4 @@
-def fingerprint(peaks, fan_value=3, min_dt=0.04, max_dt=1.2):
+def fingerprint(peaks, fan_value=15, min_dt=0.04, max_dt=1.2):
     peaks.sort(key=lambda x: x[0])  # Sort by time
     n = len(peaks)
     fingerprints = []

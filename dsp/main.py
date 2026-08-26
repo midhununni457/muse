@@ -19,7 +19,9 @@ async def extract_audio_peaks(audio: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[DSP Error] Audio decoding or processing failed: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Audio decoding or processing failed: {str(e)}")
+
 
 
 if __name__ == "__main__":

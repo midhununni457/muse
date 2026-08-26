@@ -65,32 +65,39 @@ async function matchClip(fingerprints, options = {}) {
     }
     const histogram = songHistograms.get(songId);
 
+    const TIME_BIN_MS = 30;
     for (const t1_clip of clipOffsets) {
-      const delta = Math.round(t1_song - t1_clip);
+      const rawDelta = t1_song - t1_clip;
+      const delta = Math.round(rawDelta / TIME_BIN_MS) * TIME_BIN_MS;
       const currentCount = histogram.get(delta) || 0;
       histogram.set(delta, currentCount + 1);
     }
   }
 
-  // Score candidates by peak delta frequency
+  // Score candidates by peak delta frequency and noise floor prominence
   const candidateScores = [];
 
   for (const [songId, histogram] of songHistograms.entries()) {
     let bestDelta = null;
     let peakCount = 0;
+    let secondPeakCount = 0;
     let totalMatches = 0;
 
     for (const [delta, count] of histogram.entries()) {
       totalMatches += count;
       if (count > peakCount) {
+        secondPeakCount = peakCount;
         peakCount = count;
         bestDelta = delta;
+      } else if (count > secondPeakCount) {
+        secondPeakCount = count;
       }
     }
 
     candidateScores.push({
       songId,
       peakCount,
+      secondPeakCount,
       totalMatches,
       bestDelta,
     });
@@ -110,11 +117,17 @@ async function matchClip(fingerprints, options = {}) {
   }
 
   const topCandidate = candidateScores[0];
+  
+  // Calculate confidence based on top bin peak count and ratio over noise floor
+  const countScore = Math.min(1.0, topCandidate.peakCount / 35);
+  const noiseFloor = Math.max(1, topCandidate.secondPeakCount);
+  const ratioScore = Math.min(1.0, Math.max(0, (topCandidate.peakCount / noiseFloor - 1) / 10));
+  const confidence = Number(Math.min(0.99, Math.max(0.05, (countScore * 0.6) + (ratioScore * 0.4))).toFixed(4));
 
   if (topCandidate.peakCount < minPeakThreshold) {
     return {
       match: null,
-      confidence: topCandidate.peakCount / fingerprints.length,
+      confidence,
       peakCount: topCandidate.peakCount,
       alignOffsetMs: topCandidate.bestDelta,
       candidates: candidateScores,
@@ -123,11 +136,10 @@ async function matchClip(fingerprints, options = {}) {
   }
 
   const song = await getSongById(topCandidate.songId);
-  const confidence = topCandidate.peakCount / fingerprints.length;
 
   return {
     match: song,
-    confidence: Number(confidence.toFixed(4)),
+    confidence,
     peakCount: topCandidate.peakCount,
     alignOffsetMs: topCandidate.bestDelta,
     candidates: candidateScores,

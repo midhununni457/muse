@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Upload, Sparkles, Music2, AlertCircle, RefreshCw, CheckCircle2, Clock } from 'lucide-react';
+import { Mic, Square, Upload, Music2, AlertCircle, RefreshCw, CheckCircle2, Clock, Volume2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -7,6 +7,7 @@ export default function IdentifyView() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [matchResult, setMatchResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -18,13 +19,18 @@ export default function IdentifyView() {
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl);
     };
-  }, []);
+  }, [recordedAudioUrl]);
 
   const startRecording = async () => {
     setErrorMsg(null);
     setMatchResult(null);
     setSelectedFile(null);
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+      setRecordedAudioUrl(null);
+    }
     audioChunksRef.current = [];
 
     try {
@@ -40,6 +46,8 @@ export default function IdentifyView() {
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(audioBlob);
+        setRecordedAudioUrl(url);
         stream.getTracks().forEach((track) => track.stop());
         await processAudioForIdentification(audioBlob, 'recorded_clip.webm');
       };
@@ -120,11 +128,6 @@ export default function IdentifyView() {
       
       {/* Hero Card */}
       <div className="glass-panel glass-panel-accent p-6 md:p-10 text-center relative overflow-hidden">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-violet-500/15 border border-violet-500/30 rounded-full text-violet-300 text-xs font-semibold mb-4">
-          <Sparkles size={14} />
-          <span>Shazam-Style Audio Fingerprinting</span>
-        </div>
-
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-3">
           Identify Any Song in <span className="bg-gradient-to-r from-violet-400 via-cyan-400 to-pink-400 bg-clip-text text-transparent">Seconds</span>
         </h2>
@@ -153,6 +156,17 @@ export default function IdentifyView() {
             </button>
           )}
         </div>
+
+        {/* Replay Recorded Clip (Sound Quality Test) */}
+        {recordedAudioUrl && !isRecording && (
+          <div className="mt-6 p-4 rounded-2xl bg-slate-950/60 border border-violet-500/30 max-w-md mx-auto animate-fade-in flex flex-col items-center gap-2.5 shadow-lg">
+            <div className="flex items-center gap-2 text-xs font-semibold text-violet-300">
+              <Volume2 size={16} className="text-pink-400" />
+              <span>Replay Recorded Clip (Sound Quality Test)</span>
+            </div>
+            <audio controls src={recordedAudioUrl} className="w-full h-9 rounded-lg outline-none accent-violet-500" />
+          </div>
+        )}
 
         {/* Live Audio Visualizer */}
         {isRecording && (
