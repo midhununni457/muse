@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Music, Trash2, Cpu, AlertCircle, RefreshCw, Upload, Calendar } from 'lucide-react';
+import { Plus, Music, Trash2, Cpu, AlertCircle, RefreshCw, Upload, Calendar, AlertTriangle, X } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -12,16 +12,43 @@ export default function LibraryView() {
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [audioFile, setAudioFile] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [processingIds, setProcessingIds] = useState({});
+
+  // Deletion modal and loading states
+  const [deletingIds, setDeletingIds] = useState({});
+  const [songToDelete, setSongToDelete] = useState(null);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setAudioFile(e.dataTransfer.files[0]);
+    }
+  };
+
 
   useEffect(() => {
     fetchSongs();
   }, []);
 
-  const fetchSongs = async () => {
-    setLoading(true);
+  const fetchSongs = async (showFullLoading = true) => {
+    if (showFullLoading) setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/songs`);
@@ -32,7 +59,7 @@ export default function LibraryView() {
       console.error(err);
       setError('Could not connect to API server or load songs.');
     } finally {
-      setLoading(false);
+      if (showFullLoading) setLoading(false);
     }
   };
 
@@ -73,7 +100,7 @@ export default function LibraryView() {
       setArtist('');
       setAudioFile(null);
       setUploadStatus('');
-      await fetchSongs();
+      await fetchSongs(false);
     } catch (err) {
       console.error('Upload error:', err);
       alert(err.message || 'An error occurred during upload.');
@@ -84,43 +111,60 @@ export default function LibraryView() {
   };
 
   const triggerProcessing = async (songId) => {
-    setProcessingIds((prev) => ({ ...prev, [songId]: true }));
+    const idKey = String(songId);
+    setProcessingIds((prev) => ({ ...prev, [idKey]: true }));
     try {
       const res = await fetch(`${API_BASE}/songs/${songId}/process`, {
         method: 'POST',
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to process song');
+        throw new Error(errData.error || errData.details || 'Failed to process song');
       }
-      await fetchSongs();
+      await fetchSongs(false);
     } catch (err) {
       console.error(`Processing error for song ${songId}:`, err);
       alert(`Processing error: ${err.message}`);
     } finally {
-      setProcessingIds((prev) => ({ ...prev, [songId]: false }));
+      setProcessingIds((prev) => {
+        const next = { ...prev };
+        delete next[idKey];
+        delete next[songId];
+        return next;
+      });
     }
   };
 
-  const handleDelete = async (songId) => {
-    if (!window.confirm('Are you sure you want to delete this song and its fingerprints?')) {
-      return;
-    }
 
+  const openDeleteModal = (song) => {
+    setSongToDelete(song);
+  };
+
+  const confirmDelete = async () => {
+    if (!songToDelete) return;
+    const songId = songToDelete.id;
+
+    setDeletingIds((prev) => ({ ...prev, [songId]: true }));
     try {
       const res = await fetch(`${API_BASE}/songs/${songId}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to delete song');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to delete song');
+      }
       setSongs((prev) => prev.filter((s) => s.id !== songId));
+      setSongToDelete(null);
     } catch (err) {
       console.error('Delete error:', err);
       alert(err.message || 'Could not delete song.');
+    } finally {
+      setDeletingIds((prev) => ({ ...prev, [songId]: false }));
     }
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 relative">
       
       {/* Upload Song Card */}
       <div className="glass-panel p-6">
@@ -162,16 +206,57 @@ export default function LibraryView() {
 
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-              Full Track Audio File (.mp3, .wav, .flac)
+              Full Track Audio File
             </label>
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={(e) => setAudioFile(e.target.files[0] || null)}
-              required
-              className="w-full p-2 bg-slate-950/80 border border-white/10 rounded-xl text-white text-sm file:mr-4 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-violet-600 file:text-white hover:file:bg-violet-500 cursor-pointer"
-            />
+            
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`w-full p-8 md:p-10 rounded-2xl bg-slate-950/80 border-2 border-dashed transition-all flex flex-col items-center justify-center gap-3 relative ${
+                isDragging
+                  ? 'border-violet-500 bg-violet-500/10 scale-[1.01] shadow-xl shadow-violet-500/20'
+                  : 'border-white/10 hover:border-violet-500/40'
+              }`}
+            >
+              <div
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
+                  isDragging
+                    ? 'bg-violet-500 text-white scale-110'
+                    : 'bg-violet-500/15 border border-violet-500/30 text-violet-400'
+                }`}
+              >
+                <Upload size={26} />
+              </div>
+
+              <div className="text-center">
+                <p className="text-sm font-bold text-white mb-1">
+                  {audioFile ? audioFile.name : 'Drag & drop full track audio file here'}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {audioFile
+                    ? `${(audioFile.size / (1024 * 1024)).toFixed(2)} MB`
+                    : 'or click button below (.mp3, .wav, .flac, .m4a)'}
+                </p>
+              </div>
+
+              <input
+                type="file"
+                accept="audio/*"
+                id="song-audio-file-input"
+                onChange={(e) => setAudioFile(e.target.files[0] || null)}
+                className="hidden"
+              />
+
+              <label
+                htmlFor="song-audio-file-input"
+                className="mt-1 px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-violet-600/30 cursor-pointer transition-all hover:scale-105"
+              >
+                {audioFile ? 'Change Audio File' : 'Choose File'}
+              </label>
+            </div>
           </div>
+
 
           {uploadStatus && (
             <div className="flex items-center gap-2 text-sm text-cyan-400 font-medium">
@@ -227,7 +312,8 @@ export default function LibraryView() {
         ) : (
           <div className="flex flex-col gap-3">
             {songs.map((song) => {
-              const isProcessing = processingIds[song.id];
+              const isProcessing = !!processingIds[song.id] || !!processingIds[String(song.id)];
+              const isDeleting = !!deletingIds[song.id] || !!deletingIds[String(song.id)];
               return (
                 <div
                   key={song.id}
@@ -253,8 +339,8 @@ export default function LibraryView() {
                     
                     <button
                       onClick={() => triggerProcessing(song.id)}
-                      disabled={isProcessing}
-                      className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                      disabled={isProcessing || isDeleting}
+                      className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Re-process audio fingerprints"
                     >
                       <Cpu size={14} className={isProcessing ? 'animate-spin text-violet-400' : ''} />
@@ -262,11 +348,16 @@ export default function LibraryView() {
                     </button>
 
                     <button
-                      onClick={() => handleDelete(song.id)}
-                      className="p-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 rounded-lg text-red-400 transition-colors cursor-pointer"
+                      onClick={() => openDeleteModal(song)}
+                      disabled={isDeleting || isProcessing}
+                      className="p-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 rounded-lg text-red-400 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Delete song"
                     >
-                      <Trash2 size={16} />
+                      {isDeleting ? (
+                        <RefreshCw size={16} className="animate-spin text-red-400" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
                     </button>
 
                   </div>
@@ -278,6 +369,69 @@ export default function LibraryView() {
 
       </div>
 
+      {/* Custom Confirmation Modal */}
+      {songToDelete && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div
+            className="glass-panel max-w-md w-full p-6 space-y-5 border border-red-500/20 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSongToDelete(null)}
+              disabled={deletingIds[songToDelete.id]}
+              className="absolute top-4 right-4 p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div>
+                <h4 className="text-lg font-bold text-white">Delete Song</h4>
+                <p className="text-xs text-slate-400">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Are you sure you want to delete <span className="font-semibold text-white">"{songToDelete.title}"</span> by <span className="font-semibold text-slate-200">{songToDelete.artist}</span>? This will permanently remove the track and all associated audio fingerprints.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSongToDelete(null)}
+                disabled={deletingIds[songToDelete.id]}
+                className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deletingIds[songToDelete.id]}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-600/30 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingIds[songToDelete.id] ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    <span>Delete Song</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+

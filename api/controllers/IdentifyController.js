@@ -4,18 +4,29 @@ const { matchClip } = require('../utils/match');
 
 class IdentifyController {
   async identifyAudioClip(req, res) {
-    let clipPath = null;
+    let tempDiskPath = null;
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'Audio clip file is required' });
       }
 
-      clipPath = req.file.path;
+      let fileBuffer;
+      let filename = req.file.originalname || 'clip.wav';
+
+      if (req.file.buffer) {
+        fileBuffer = req.file.buffer;
+      } else if (req.file.path && fs.existsSync(req.file.path)) {
+        tempDiskPath = req.file.path;
+        fileBuffer = fs.readFileSync(req.file.path);
+        filename = path.basename(req.file.path);
+      } else {
+        return res.status(400).json({ error: 'Invalid audio file content' });
+      }
+
       const dspUrl = process.env.DSP_SERVICE_URL || 'http://localhost:8000';
-      const fileBuffer = fs.readFileSync(clipPath);
       const blob = new Blob([fileBuffer]);
       const formData = new FormData();
-      formData.append('audio', blob, path.basename(clipPath));
+      formData.append('audio', blob, filename);
 
       let dspResponse;
       try {
@@ -55,10 +66,10 @@ class IdentifyController {
       console.error('Error identifying audio clip:', error);
       return res.status(500).json({ error: error.message });
     } finally {
-      // Clean up temporary clip file
-      if (clipPath && fs.existsSync(clipPath)) {
+      // Clean up fallback temporary file if created on disk
+      if (tempDiskPath && fs.existsSync(tempDiskPath)) {
         try {
-          fs.unlinkSync(clipPath);
+          fs.unlinkSync(tempDiskPath);
         } catch (cleanupErr) {
           console.warn('Failed to delete temp clip file:', cleanupErr.message);
         }

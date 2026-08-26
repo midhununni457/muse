@@ -8,6 +8,11 @@ const {
 } = require('../db/songs.db');
 const { deleteHashOfSong, addManyHashes } = require('../db/hashes.db');
 const { packHash } = require('../utils/hash');
+const {
+  uploadAudioToSupabase,
+  deleteAudioFromSupabase,
+  getAudioBufferFromSupabase,
+} = require('../utils/storage');
 
 class SongController {
   async uploadSong(req, res) {
@@ -23,7 +28,14 @@ class SongController {
           .json({ error: 'Both title and artist are required' });
       }
 
-      const song = await addSong(title, artist, req.file.path);
+      // Upload buffer to Supabase Storage
+      const { publicUrl } = await uploadAudioToSupabase(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
+
+      const song = await addSong(title, artist, publicUrl);
       return res.status(201).json(song);
     } catch (error) {
       console.error('Error uploading song:', error);
@@ -62,14 +74,22 @@ class SongController {
         return res.status(404).json({ error: 'Song not found' });
       }
 
-      if (!song.filePath || !fs.existsSync(song.filePath)) {
+      if (!song.filePath) {
         return res
           .status(400)
-          .json({ error: 'Audio file not found on server for this song' });
+          .json({ error: 'Audio file reference not found for this song' });
+      }
+
+      let fileBuffer;
+      // Support legacy local files if present
+      if (fs.existsSync(song.filePath)) {
+        fileBuffer = fs.readFileSync(song.filePath);
+      } else {
+        // Fetch audio buffer from Supabase Storage / Public URL
+        fileBuffer = await getAudioBufferFromSupabase(song.filePath);
       }
 
       const dspUrl = process.env.DSP_SERVICE_URL || 'http://localhost:8000';
-      const fileBuffer = fs.readFileSync(song.filePath);
       const blob = new Blob([fileBuffer]);
       const formData = new FormData();
       formData.append('audio', blob, path.basename(song.filePath));
@@ -131,12 +151,16 @@ class SongController {
       // Delete hashes linked to song
       await deleteHashOfSong(id);
 
-      // Delete audio file from disk if present
-      if (song.filePath && fs.existsSync(song.filePath)) {
-        try {
-          fs.unlinkSync(song.filePath);
-        } catch (fileErr) {
-          console.warn('Could not delete audio file from disk:', fileErr.message);
+      // Delete audio file from storage (Supabase or legacy local disk)
+      if (song.filePath) {
+        if (fs.existsSync(song.filePath)) {
+          try {
+            fs.unlinkSync(song.filePath);
+          } catch (fileErr) {
+            console.warn('Could not delete local audio file:', fileErr.message);
+          }
+        } else {
+          await deleteAudioFromSupabase(song.filePath);
         }
       }
 
