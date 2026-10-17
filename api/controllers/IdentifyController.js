@@ -52,11 +52,17 @@ class IdentifyController {
       const dspData = await dspResponse.json();
       const fingerprints = dspData.fingerprints || [];
 
-      const threshold = req.query.threshold || req.body?.threshold
-        ? Number(req.query.threshold || req.body?.threshold)
-        : 5;
+      const thresholdParam = req.query.threshold || req.body?.threshold;
+      const matchOptions = {};
+      if (thresholdParam) {
+        matchOptions.minPeakThreshold = Number(thresholdParam);
+      }
 
-      const result = await matchClip(fingerprints, { minPeakThreshold: threshold });
+      const result = await matchClip(fingerprints, matchOptions);
+
+      console.log(
+        `[Identify] match=${!!result.match} title="${result.match?.title || 'None'}" confidence=${result.confidence} peak=${result.peakCount} runnerUpRatio=${result.diagnostics?.topPeakToRunnerUpRatio ?? 'N/A'} reason="${result.reason || 'match'}"`
+      );
 
       return res.status(200).json({
         success: !!result.match,
