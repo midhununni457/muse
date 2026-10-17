@@ -1,60 +1,133 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --bg-deep: #0a0b0e;
+    --bg-surface: #12141a;
+    --bg-card: #181a22;
+    --border-hairline: rgba(255, 255, 255, 0.08);
+    --border-accent: rgba(249, 115, 22, 0.3);
+    --accent-amber: #f97316;
+    --accent-emerald: #10b981;
+    --accent-cyan: #06b6d4;
+  }
+
   body {
-    @apply bg-slate-950 text-slate-100 min-h-screen font-sans antialiased;
+    background-color: #090a0d;
+    color: #e4e4e7;
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
     background-image: 
-      radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
-      radial-gradient(at 50% 50%, rgba(236, 72, 153, 0.08) 0px, transparent 50%);
+      radial-gradient(circle at 50% 0%, rgba(249, 115, 22, 0.04) 0%, transparent 60%),
+      radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 24px 24px;
     background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  code, kbd, samp, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   }
 }
 
-/* Glassmorphism Utilities */
-.glass-panel {
-  @apply bg-slate-900/65 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl transition-all duration-300;
+/* Studio Hardware Chassis Panel */
+.chassis-panel {
+  background: linear-gradient(180deg, #161820 0%, #111319 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 12px 32px -8px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+  position: relative;
 }
 
-.glass-panel:hover {
-  @apply border-white/20;
+.chassis-panel-active {
+  border-color: rgba(249, 115, 22, 0.4);
+  box-shadow: 
+    0 0 25px -5px rgba(249, 115, 22, 0.15),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 12px 32px -8px rgba(0, 0, 0, 0.7);
 }
 
-.glass-panel-accent {
-  @apply bg-gradient-to-br from-violet-900/20 to-cyan-900/20 border border-violet-500/30 backdrop-blur-xl;
+/* Inset Studio Bay / Slot */
+.chassis-bay {
+  background: #0b0c11;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8), inset 0 1px 2px rgba(0, 0, 0, 0.9);
 }
 
-/* Custom Animations */
-@keyframes pulse-ring {
+/* Tactile Studio Hardware Buttons */
+.btn-hardware {
+  position: relative;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn-hardware:active {
+  transform: translateY(1.5px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6), inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* LED Indicator Glow */
+.led-glow-amber {
+  box-shadow: 0 0 8px #f97316, 0 0 16px rgba(249, 115, 22, 0.4);
+}
+
+.led-glow-emerald {
+  box-shadow: 0 0 8px #10b981, 0 0 16px rgba(16, 185, 129, 0.4);
+}
+
+.led-glow-red {
+  box-shadow: 0 0 10px #ef4444, 0 0 20px rgba(239, 68, 68, 0.6);
+}
+
+/* Vinyl Spin Animation */
+@keyframes spin-record {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-record 8s linear infinite;
+}
+
+/* Tactile Record Pulse Glow */
+@keyframes rec-pulse {
   0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.7);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
   }
   70% {
-    transform: scale(1.15);
-    box-shadow: 0 0 0 25px rgba(236, 72, 153, 0);
+    box-shadow: 0 0 0 18px rgba(239, 68, 68, 0);
   }
   100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(236, 72, 153, 0);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
   }
 }
 
-@keyframes wave-bar {
-  0%, 100% { height: 12px; }
-  50% { height: 40px; }
+.animate-rec-pulse {
+  animation: rec-pulse 1.6s cubic-bezier(0.66, 0, 0, 1) infinite;
 }
 
-.animate-pulse-ring {
-  animation: pulse-ring 1.5s infinite;
+/* Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-.wave-bar {
-  @apply w-1 bg-gradient-to-t from-violet-500 to-pink-500 rounded-full;
-  animation: wave-bar 1.2s ease-in-out infinite;
+::-webkit-scrollbar-track {
+  background: #090a0d;
 }
 
-.wave-bar:nth-child(2n) { animation-delay: 0.2s; }
-.wave-bar:nth-child(3n) { animation-delay: 0.4s; }
-.wave-bar:nth-child(4n) { animation-delay: 0.1s; }
-.wave-bar:nth-child(5n) { animation-delay: 0.3s; }
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
