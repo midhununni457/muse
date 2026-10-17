@@ -27,6 +27,11 @@ def fingerprint(peaks, fan_value=15, min_dt=0.04, max_dt=1.2):
                 j += 1
                 continue
 
+            # Avoid pairing identical frequencies across adjacent frames (stationary tones)
+            if f1_q == f2_q and dt_ms <= 60:
+                j += 1
+                continue
+
             fingerprints.append((f1_q, f2_q, dt_ms, t1_ms))
 
             neighbors += 1
