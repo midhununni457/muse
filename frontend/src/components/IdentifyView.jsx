@@ -3,7 +3,7 @@ import {
   Mic,
   Square,
   Upload,
-  Music2,
+  Disc3,
   AlertCircle,
   RefreshCw,
   CheckCircle2,
@@ -11,7 +11,16 @@ import {
   Volume2,
   RotateCcw,
   FileAudio,
+  Radio,
+  Search,
+  Sparkles,
+  Layers,
+  Database,
+  ArrowRight,
+  Activity,
+  Cpu,
 } from 'lucide-react';
+import AudioVisualizer from './AudioVisualizer';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -19,6 +28,7 @@ export default function IdentifyView() {
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'upload'
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [audioStream, setAudioStream] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState(null);
@@ -28,14 +38,38 @@ export default function IdentifyView() {
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-  const timerRef = useRef(null);
 
+  // Robust recording timer: increments every second when isRecording is true
+  useEffect(() => {
+    let interval = null;
+    if (isRecording) {
+      setRecordingTime(0);
+      interval = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setRecordingTime(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording]);
+
+  // Cleanup object URLs on unmount or replacement
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
       if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl);
     };
   }, [recordedAudioUrl]);
+
+  // Cleanup media tracks on unmount
+  useEffect(() => {
+    return () => {
+      if (audioStream) {
+        audioStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [audioStream]);
 
   const resetIdentify = () => {
     setMatchResult(null);
@@ -44,7 +78,10 @@ export default function IdentifyView() {
     setIsRecording(false);
     setIsDragging(false);
     setRecordingTime(0);
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (audioStream) {
+      audioStream.getTracks().forEach((track) => track.stop());
+      setAudioStream(null);
+    }
     if (recordedAudioUrl) {
       URL.revokeObjectURL(recordedAudioUrl);
       setRecordedAudioUrl(null);
@@ -75,7 +112,6 @@ export default function IdentifyView() {
     }
   };
 
-
   const startRecording = async () => {
     setErrorMsg(null);
     setMatchResult(null);
@@ -88,6 +124,8 @@ export default function IdentifyView() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setAudioStream(stream);
+
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
@@ -102,19 +140,15 @@ export default function IdentifyView() {
         const url = URL.createObjectURL(audioBlob);
         setRecordedAudioUrl(url);
         stream.getTracks().forEach((track) => track.stop());
+        setAudioStream(null);
         await processAudioForIdentification(audioBlob, 'recorded_clip.webm');
       };
 
       mediaRecorder.start();
       setIsRecording(true);
-      setRecordingTime(0);
-
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
     } catch (err) {
       console.error('Microphone error:', err);
-      setErrorMsg('Microphone access denied or not supported in this browser.');
+      setErrorMsg('Microphone access denied or audio input not found.');
     }
   };
 
@@ -122,7 +156,6 @@ export default function IdentifyView() {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      if (timerRef.current) clearInterval(timerRef.current);
     }
   };
 
@@ -155,19 +188,20 @@ export default function IdentifyView() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to identify audio clip');
+        throw new Error(errData.error || 'Failed to identify song');
       }
 
       const data = await res.json();
       setMatchResult(data);
     } catch (err) {
       console.error('Identification error:', err);
-      setErrorMsg(err.message || 'An error occurred while matching audio.');
+      setErrorMsg(err.message || 'Could not identify audio clip.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
+  // Format offset in minutes and seconds only (e.g. 1:24)
   const formatOffset = (ms) => {
     if (ms === null || ms === undefined) return '0:00';
     const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -176,25 +210,119 @@ export default function IdentifyView() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  const formatTimer = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  // Timeline Step Definitions tailored per tab
+  const timelineSteps =
+    activeTab === 'record'
+      ? [
+          {
+            stage: 'STAGE 01',
+            badge: '0.0s – 5.0s',
+            title: 'Ambient Audio Capture',
+            desc: 'Streams live audio from your microphone directly into a temporary audio buffer while reducing room noise.',
+            icon: Mic,
+            accent: 'text-orange-400 border-orange-500/60 shadow-orange-500/20',
+          },
+          {
+            stage: 'STAGE 02',
+            badge: 'FFT TRANSFORM',
+            title: 'Fast Fourier Transform',
+            desc: 'Deconstructs the incoming sound waves into discrete frequency bands across time to map energy amplitudes.',
+            icon: Activity,
+            accent: 'text-cyan-400 border-cyan-500/60 shadow-cyan-500/20',
+          },
+          {
+            stage: 'STAGE 03',
+            badge: 'CONSTELLATION',
+            title: 'Landmark Fingerprinting',
+            desc: 'Identifies prominent spectral peaks and couples them into combinatorial hash pairs resistant to distortion.',
+            icon: Sparkles,
+            accent: 'text-amber-400 border-amber-500/60 shadow-amber-500/20',
+          },
+          {
+            stage: 'STAGE 04',
+            badge: 'INSTANT MATCH',
+            title: 'Database Match & Time Sync',
+            desc: 'Queries the indexed song database for matching hashes to pinpoint the song title, artist, and playback offset.',
+            icon: CheckCircle2,
+            accent: 'text-emerald-400 border-emerald-500/60 shadow-emerald-500/20',
+          },
+        ]
+      : [
+          {
+            stage: 'STAGE 01',
+            badge: 'AUDIO INGEST',
+            title: 'File Decoding & Resampling',
+            desc: 'Parses your uploaded audio clip (.mp3, .wav, .flac) and converts it into standard 44.1kHz mono PCM audio.',
+            icon: FileAudio,
+            accent: 'text-orange-400 border-orange-500/60 shadow-orange-500/20',
+          },
+          {
+            stage: 'STAGE 02',
+            badge: 'STFT MATRIX',
+            title: 'Time-Frequency Mapping',
+            desc: 'Computes a high-resolution Short-Time Fourier Transform spectrogram across the entire duration of the clip.',
+            icon: Layers,
+            accent: 'text-cyan-400 border-cyan-500/60 shadow-cyan-500/20',
+          },
+          {
+            stage: 'STAGE 03',
+            badge: 'PEAK HASHING',
+            title: 'Landmark Extraction',
+            desc: 'Locates local frequency maxima and pairs target-zone peaks with delta-time stamps for robust matching.',
+            icon: Cpu,
+            accent: 'text-amber-400 border-amber-500/60 shadow-amber-500/20',
+          },
+          {
+            stage: 'STAGE 04',
+            badge: 'CORRELATION',
+            title: 'Library Matching & Offset',
+            desc: 'Cross-references the clip hash table with your music database to identify the song and report the exact offset.',
+            icon: Database,
+            accent: 'text-emerald-400 border-emerald-500/60 shadow-emerald-500/20',
+          },
+        ];
+
   return (
-    <div className="flex flex-col gap-6 max-w-2xl mx-auto w-full">
-      <div className="glass-panel glass-panel-accent p-6 md:p-10 text-center relative overflow-hidden transition-all">
+    <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full">
+      {/* Studio Workstation Central Unit */}
+      <div className="chassis-panel rounded-2xl p-6 md:p-8 relative overflow-hidden">
+        {/* Hardware Top Header Strip */}
+        <div className="flex items-center justify-between pb-4 border-b border-white/5 mb-6">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-sm bg-orange-500 shadow-sm" />
+            <h2 className="text-sm font-mono uppercase tracking-widest text-zinc-300 font-bold">
+              AUDIO RECOGNITION
+            </h2>
+          </div>
+          <div className="flex items-center gap-2 font-mono text-[11px] text-zinc-500">
+            <span>INPUT:</span>
+            <span className="text-orange-400 font-bold uppercase">
+              {activeTab === 'record' ? 'MICROPHONE' : 'FILE UPLOAD'}
+            </span>
+          </div>
+        </div>
+
         {!matchResult ? (
           <>
-            {/* Header & Mode Toggle */}
-            <div className="flex flex-col items-center mb-8">
-              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-2">
-                Identify Any Song in{' '}
-                <span className="bg-gradient-to-r from-violet-400 via-cyan-400 to-pink-400 bg-clip-text text-transparent">
-                  Seconds
-                </span>
-              </h2>
-              <p className="text-slate-400 text-xs sm:text-sm max-w-md mb-6 leading-relaxed">
-                Record ambient audio through your microphone or upload an audio sample clip to match against your database library.
-              </p>
+            {/* Input Selection Toggle Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+              <div>
+                <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                  Identify What's Playing
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Sample ambient music or drop recorded clips to match against your music library.
+                </p>
+              </div>
 
-              {/* Mode Toggle Pills */}
-              <div className="inline-flex p-1.5 bg-slate-950/80 border border-white/10 rounded-2xl gap-1">
+              {/* Mode Toggle Buttons */}
+              <div className="flex p-1 rounded-xl chassis-bay border border-zinc-800 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -202,14 +330,14 @@ export default function IdentifyView() {
                     setErrorMsg(null);
                   }}
                   disabled={isAnalyzing || isRecording}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
                     activeTab === 'record'
-                      ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-600/30'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-zinc-800 text-white font-bold border border-zinc-700 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-300'
                   }`}
                 >
-                  <Mic size={16} />
-                  <span>Record Audio</span>
+                  <Mic size={14} className={activeTab === 'record' ? 'text-orange-400' : ''} />
+                  <span>Microphone</span>
                 </button>
 
                 <button
@@ -219,117 +347,142 @@ export default function IdentifyView() {
                     setErrorMsg(null);
                   }}
                   disabled={isAnalyzing || isRecording}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
                     activeTab === 'upload'
-                      ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-600/30'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-zinc-800 text-white font-bold border border-zinc-700 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-300'
                   }`}
                 >
-                  <Upload size={16} />
-                  <span>Upload Clip</span>
+                  <Upload size={14} className={activeTab === 'upload' ? 'text-orange-400' : ''} />
+                  <span>Upload File</span>
                 </button>
               </div>
             </div>
 
-            {/* Mode 1: Record Ambient Audio */}
+            {/* Live Audio Visualizer Deck */}
+            <div className="mb-6">
+              <AudioVisualizer
+                stream={audioStream}
+                isRecording={isRecording}
+                isAnalyzing={isAnalyzing}
+              />
+            </div>
+
+            {/* Mode 1: Microphone Recording Deck */}
             {activeTab === 'record' && (
-              <div className="flex flex-col items-center gap-4 animate-fade-in">
-                {!isRecording ? (
-                  <button
-                    onClick={startRecording}
-                    disabled={isAnalyzing}
-                    className="flex items-center gap-3 px-8 py-4 text-base font-bold rounded-full bg-gradient-to-r from-pink-500 via-purple-600 to-violet-600 text-white shadow-xl shadow-pink-500/25 hover:shadow-pink-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Mic size={22} />
-                    <span>Tap to Listen</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={stopRecording}
-                    className="flex items-center gap-3 px-8 py-4 text-base font-bold rounded-full bg-red-600 hover:bg-red-500 text-white shadow-xl shadow-red-600/30 transition-all cursor-pointer"
-                  >
-                    <Square size={22} />
-                    <span>Stop Recording ({recordingTime}s)</span>
-                  </button>
-                )}
+              <div className="flex flex-col items-center justify-center p-6 sm:p-8 rounded-2xl chassis-bay border border-zinc-800/80 text-center relative">
+                {/* Physical Knurled REC Button */}
+                <div className="relative mb-4">
+                  {!isRecording ? (
+                    <button
+                      onClick={startRecording}
+                      disabled={isAnalyzing}
+                      className="group relative w-28 h-28 rounded-full bg-gradient-to-b from-zinc-800 to-zinc-950 border-4 border-zinc-700/80 flex flex-col items-center justify-center text-white shadow-2xl hover:border-orange-500/80 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed btn-hardware"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-b from-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-500/30 group-hover:scale-105 transition-transform">
+                        <Mic size={28} className="text-white" />
+                      </div>
+                      <span className="font-mono text-[9px] uppercase tracking-widest text-zinc-400 mt-1 font-bold">
+                        LISTEN
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopRecording}
+                      className="relative w-28 h-28 rounded-full bg-gradient-to-b from-zinc-800 to-zinc-950 border-4 border-red-500 flex flex-col items-center justify-center text-white shadow-2xl animate-rec-pulse cursor-pointer btn-hardware"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/50">
+                        <Square size={24} className="text-white fill-white" />
+                      </div>
+                      <span className="font-mono text-[9px] uppercase tracking-widest text-red-400 mt-1 font-bold">
+                        STOP
+                      </span>
+                    </button>
+                  )}
+                </div>
 
-                {/* Live Visualizer */}
-                {isRecording && (
-                  <div className="mt-4">
-                    <div className="flex items-center justify-center gap-1.5 h-12">
-                      {[...Array(14)].map((_, i) => (
-                        <div key={i} className="wave-bar" />
-                      ))}
+                {/* Status Readout */}
+                <div>
+                  {isRecording ? (
+                    <div className="flex items-center gap-2 justify-center font-mono">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 led-glow-red animate-ping" />
+                      <span className="text-sm font-bold text-red-400 tracking-wider">
+                        LISTENING... [{formatTimer(recordingTime)}]
+                      </span>
                     </div>
-                    <p className="text-xs font-semibold text-pink-400 mt-2">
-                      Listening to ambient audio...
+                  ) : (
+                    <p className="text-xs text-zinc-400">
+                      Tap the button to start listening to the music around you
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* Replay Recorded Clip */}
+                {/* Playback of Recorded Clip if Available */}
                 {recordedAudioUrl && !isRecording && !isAnalyzing && (
-                  <div className="mt-4 p-4 rounded-2xl bg-slate-950/60 border border-violet-500/30 w-full max-w-md animate-fade-in flex flex-col items-center gap-2.5 shadow-lg">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-violet-300">
-                      <Volume2 size={16} className="text-pink-400" />
-                      <span>Recorded Audio Clip</span>
+                  <div className="mt-6 p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 w-full max-w-md flex flex-col gap-2 shadow-inner">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
+                      <span className="flex items-center gap-1.5 text-orange-400">
+                        <Volume2 size={13} />
+                        RECORDED SAMPLE
+                      </span>
+                      <span className="text-zinc-500">WEBM AUDIO</span>
                     </div>
                     <audio
                       controls
                       src={recordedAudioUrl}
-                      className="w-full h-9 rounded-lg outline-none accent-violet-500"
+                      className="w-full h-8 rounded outline-none accent-orange-500"
                     />
                   </div>
                 )}
               </div>
             )}
 
-            {/* Mode 2: Upload Clip File */}
+            {/* Mode 2: Audio File Upload Ingestion Deck */}
             {activeTab === 'upload' && (
-              <div className="flex flex-col items-center gap-4 animate-fade-in w-full max-w-md mx-auto">
+              <div className="flex flex-col items-center gap-4 w-full">
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`w-full p-8 md:p-10 rounded-2xl bg-slate-950/70 border-2 border-dashed transition-all flex flex-col items-center justify-center gap-3 relative ${
+                  className={`w-full p-8 md:p-10 rounded-2xl chassis-bay border-2 border-dashed transition-all flex flex-col items-center justify-center gap-3 relative ${
                     isDragging
-                      ? 'border-violet-500 bg-violet-500/10 scale-[1.02] shadow-xl shadow-violet-500/20'
-                      : 'border-white/20 hover:border-violet-500/50'
+                      ? 'border-orange-500 bg-orange-500/5 scale-[1.01]'
+                      : 'border-zinc-800 hover:border-zinc-700'
                   }`}
                 >
                   <div
-                    className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
+                    className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
                       isDragging
-                        ? 'bg-violet-500 text-white scale-110'
-                        : 'bg-violet-500/15 border border-violet-500/30 text-violet-400'
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-zinc-900 border border-zinc-800 text-zinc-400'
                     }`}
                   >
-                    <FileAudio size={28} />
+                    <FileAudio size={26} />
                   </div>
 
                   <div className="text-center">
-                    <p className="text-sm sm:text-base font-bold text-white mb-1">
-                      {selectedFile ? selectedFile.name : 'Drag & drop audio clip here'}
+                    <p className="text-sm font-bold text-white mb-1">
+                      {selectedFile ? selectedFile.name : 'Drop audio clip here'}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs font-mono text-zinc-500">
                       {selectedFile
-                        ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
-                        : 'or click button below (.mp3, .wav, .flac, .m4a up to 50MB)'}
+                        ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB // READY`
+                        : 'MP3, WAV, FLAC, M4A up to 50MB'}
                     </p>
                   </div>
 
                   <input
                     type="file"
                     accept="audio/*"
-                    id="clip-upload-input"
+                    id="sample-upload-picker"
                     onChange={handleFileChange}
                     className="hidden"
                   />
                   <label
-                    htmlFor="clip-upload-input"
-                    className="mt-1 px-6 py-2.5 bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl text-xs font-bold text-white cursor-pointer transition-all hover:scale-105"
+                    htmlFor="sample-upload-picker"
+                    className="mt-1 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-lg text-xs font-mono uppercase tracking-wider cursor-pointer transition-all hover:border-orange-500/50"
                   >
-                    {selectedFile ? 'Change File' : 'Choose File'}
+                    {selectedFile ? 'Select Different File' : 'Browse Local Files'}
                   </label>
                 </div>
 
@@ -337,120 +490,274 @@ export default function IdentifyView() {
                   <button
                     onClick={handleFileUpload}
                     disabled={isAnalyzing}
-                    className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl text-xs font-mono uppercase tracking-widest font-bold shadow-lg shadow-orange-500/20 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 btn-hardware"
                   >
-                    <Upload size={18} />
-                    <span>Identify Uploaded Clip</span>
+                    <Search size={16} />
+                    <span>Identify Song</span>
                   </button>
                 )}
               </div>
             )}
 
-
-            {/* Analyzing Loading Indicator */}
+            {/* Analyzing Progress Card */}
             {isAnalyzing && (
-              <div className="mt-8 p-6 rounded-2xl bg-slate-950/70 border border-violet-500/30 text-center animate-fade-in">
-                <RefreshCw size={32} className="text-violet-400 animate-spin mx-auto mb-3" />
-                <h4 className="text-base font-bold text-white">Analyzing Audio Fingerprints</h4>
-                <p className="text-xs text-slate-400 mt-1">
-                  Cross-referencing landmark peak pairs against song library...
+              <div className="mt-6 p-5 rounded-xl chassis-bay border border-cyan-500/30 text-center animate-in fade-in">
+                <RefreshCw size={26} className="text-cyan-400 animate-spin mx-auto mb-2.5" />
+                <h4 className="text-sm font-mono uppercase tracking-wider text-white font-bold">
+                  Searching Song Library...
+                </h4>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Analyzing audio frequencies and finding matches in your database...
                 </p>
               </div>
             )}
 
             {/* Error Banner */}
             {errorMsg && (
-              <div className="mt-6 p-4 rounded-xl border border-red-500/40 bg-red-500/10 text-left animate-fade-in">
-                <div className="flex items-center gap-3 text-red-400 font-semibold text-xs sm:text-sm">
-                  <AlertCircle size={18} className="shrink-0" />
+              <div className="mt-6 p-4 rounded-xl border border-red-500/30 bg-red-950/20 text-left">
+                <div className="flex items-center gap-2.5 text-red-400 font-mono text-xs">
+                  <AlertCircle size={16} className="shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
               </div>
             )}
           </>
         ) : (
-          /* Match Result Mode inside the card */
-          <div className="animate-fade-in flex flex-col items-center">
+          /* Match Result Screen */
+          <div className="animate-in fade-in flex flex-col items-center">
             {matchResult.success && matchResult.match ? (
               <div className="w-full">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs uppercase tracking-wider mb-6">
-                  <CheckCircle2 size={16} />
-                  <span>SONG MATCH FOUND</span>
+                {/* Status Badge */}
+                <div className="flex justify-between items-center mb-6 pb-3 border-b border-white/5">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-bold tracking-wider uppercase">
+                    <CheckCircle2 size={14} />
+                    <span>SONG MATCH FOUND</span>
+                  </div>
+                  <span className="font-mono text-[11px] text-zinc-500">
+                    ID: #{matchResult.match.id}
+                  </span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-8 text-center sm:text-left">
-                  <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-cyan-500 flex items-center justify-center shadow-xl shadow-violet-600/30 shrink-0">
-                    <Music2 size={48} className="text-white" />
+                {/* Master Record Sleeve Card */}
+                <div className="p-6 md:p-8 rounded-2xl chassis-bay border border-zinc-800 mb-6 flex flex-col sm:flex-row items-center gap-6">
+                  {/* Rotating Vinyl Record Graphic */}
+                  <div className="relative w-28 h-28 rounded-full bg-zinc-950 border-4 border-zinc-800 flex items-center justify-center shrink-0 shadow-2xl animate-spin-slow">
+                    <div className="absolute inset-2 rounded-full border border-zinc-800/80" />
+                    <div className="absolute inset-4 rounded-full border border-zinc-800/60" />
+                    <div className="absolute inset-6 rounded-full border border-zinc-800/40" />
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center shadow-md">
+                      <Disc3 size={18} className="text-zinc-950" />
+                    </div>
                   </div>
 
-                  <div>
-                    <h3 className="text-2xl sm:text-3xl font-extrabold text-white">
+                  <div className="flex-1 text-center sm:text-left min-w-0">
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-orange-400 font-bold mb-1">
+                      MATCHED SONG
+                    </p>
+                    <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight truncate">
                       {matchResult.match.title}
                     </h3>
-                    <p className="text-base sm:text-lg text-slate-300 font-semibold mt-1">
+                    <p className="text-base sm:text-lg text-zinc-300 font-medium mt-0.5 truncate">
                       {matchResult.match.artist}
                     </p>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
+                      <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 font-mono text-[10px] text-zinc-400">
+                        MATCH: CONFIRMED
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 font-mono text-[10px] text-zinc-400">
+                        LIBRARY AUDIO
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left max-w-lg mx-auto mb-8">
-                  <div className="bg-slate-950/70 p-4 rounded-2xl border border-white/10">
-                    <p className="text-[0.7rem] font-bold text-slate-400 uppercase tracking-wider">
-                      Confidence Score
+                {/* Reverted Metric Gauges (CONFIDENCE LEVEL & OFFSET ALIGNMENT) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                  {/* Confidence VU Meter */}
+                  <div className="p-4 rounded-xl chassis-bay border border-zinc-800">
+                    <div className="flex items-center justify-between text-xs font-mono text-zinc-400 mb-1">
+                      <span className="uppercase tracking-wider">CONFIDENCE LEVEL</span>
+                      <span className="text-emerald-400 font-bold text-sm">
+                        {Math.round((matchResult.confidence || 0) * 100)}%
+                      </span>
+                    </div>
+
+                    {/* Segmented LED Gauge Meter */}
+                    <div className="grid grid-cols-12 gap-1 h-3 my-2">
+                      {[...Array(12)].map((_, i) => {
+                        const filled = (i + 1) / 12 <= (matchResult.confidence || 0);
+                        return (
+                          <div
+                            key={i}
+                            className={`h-full rounded-xs transition-colors duration-300 ${
+                              filled
+                                ? i > 9
+                                  ? 'bg-red-500 led-glow-red'
+                                  : i > 7
+                                  ? 'bg-amber-400 led-glow-amber'
+                                  : 'bg-emerald-500 led-glow-emerald'
+                                : 'bg-zinc-900 border border-white/5'
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-1">
+                      Landmark peak alignment threshold verified
                     </p>
-                    <p className="text-2xl font-black text-emerald-400 mt-1">
-                      {Math.round((matchResult.confidence || 0) * 100)}%
-                    </p>
-                    <div className="w-full h-2 bg-white/10 rounded-full mt-2 overflow-hidden">
+                  </div>
+
+                  {/* Alignment Timeline Offset (Seconds only) */}
+                  <div className="p-4 rounded-xl chassis-bay border border-zinc-800">
+                    <div className="flex items-center justify-between text-xs font-mono text-zinc-400 mb-1">
+                      <span className="uppercase tracking-wider flex items-center gap-1.5">
+                        <Clock size={13} className="text-cyan-400" />
+                        OFFSET ALIGNMENT
+                      </span>
+                      <span className="text-cyan-400 font-bold text-sm">
+                        Starts at {formatOffset(matchResult.alignOffsetMs)}
+                      </span>
+                    </div>
+
+                    {/* Timeline Position Strip */}
+                    <div className="w-full h-3 rounded bg-zinc-900 border border-zinc-800 my-2 relative overflow-hidden flex items-center">
                       <div
-                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                        className="h-full bg-cyan-500/40 border-r-2 border-cyan-400"
                         style={{
                           width: `${Math.min(
-                            100,
-                            Math.round((matchResult.confidence || 0) * 100)
+                            95,
+                            Math.max(5, ((matchResult.alignOffsetMs || 0) % 180000) / 1800)
                           )}%`,
                         }}
                       />
                     </div>
-                  </div>
-
-                  <div className="bg-slate-950/70 p-4 rounded-2xl border border-white/10">
-                    <p className="text-[0.7rem] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Clock size={14} className="text-cyan-400" />
-                      <span>Matched Offset</span>
-                    </p>
-                    <p className="text-2xl font-black text-cyan-400 mt-1">
-                      Starts at {formatOffset(matchResult.alignOffsetMs)}
-                    </p>
-                    <p className="text-[0.75rem] text-slate-500 mt-1">
+                    <p className="text-[11px] text-zinc-400 mt-1">
                       Time position in source audio
                     </p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="w-full py-4 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto mb-4">
+              /* No Match Found Screen */
+              <div className="w-full py-8 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-amber-500/30 flex items-center justify-center text-amber-500 mx-auto mb-4 shadow-inner">
                   <AlertCircle size={32} />
                 </div>
-                <h3 className="text-xl font-bold text-amber-400 mb-2">No Match Found</h3>
-                <p className="text-slate-400 text-sm max-w-md mx-auto mb-6">
-                  We couldn't find a matching song in your library. Try recording a clearer clip or ingest more songs into your library.
+                <h3 className="text-xl font-bold text-white mb-1">No Song Match Found</h3>
+                <p className="text-xs text-zinc-400 max-w-md mx-auto mb-6">
+                  We couldn't find a matching song in your library. Try recording a clearer clip, or add this song to your library first.
                 </p>
               </div>
             )}
 
-            {/* Record Again Reset Button */}
+            {/* Tactile Reset Button */}
             <button
               onClick={resetIdentify}
-              className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 text-white font-bold text-sm shadow-xl shadow-violet-600/30 hover:shadow-violet-600/50 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+              className="px-6 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-mono text-xs uppercase tracking-widest font-bold flex items-center gap-2 shadow-lg transition-all hover:border-orange-500 cursor-pointer btn-hardware"
             >
-              <RotateCcw size={18} />
-              <span>Record Again</span>
+              <RotateCcw size={14} className="text-orange-400" />
+              <span>Identify Another Song</span>
             </button>
           </div>
         )}
+      </div>
+
+      {/* DYNAMIC WEBSITE-STYLE TIMELINE HOW IT WORKS SECTION */}
+      <div className="chassis-panel rounded-2xl p-6 md:p-8 relative">
+        <div className="flex items-center justify-between pb-4 border-b border-white/5 mb-6">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-sm bg-orange-500 shadow-sm" />
+            <h3 className="text-sm font-mono uppercase tracking-widest text-zinc-300 font-bold">
+              HOW IT WORKS
+            </h3>
+          </div>
+          <span className="font-mono text-[11px] text-orange-400 font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-orange-500/10 border border-orange-500/20">
+            {activeTab === 'record' ? 'LIVE AUDIO PIPELINE' : 'FILE ANALYSIS PIPELINE'}
+          </span>
+        </div>
+
+        <div className="mb-8">
+          <h4 className="text-xl font-bold text-white tracking-tight">
+            {activeTab === 'record'
+              ? 'Live Microphone Recognition Timeline'
+              : 'Uploaded Clip Ingestion Timeline'}
+          </h4>
+          <p className="text-xs text-zinc-400 mt-1">
+            {activeTab === 'record'
+              ? 'How Muse captures ambient sound waves and identifies tracks in real time.'
+              : 'How Muse parses audio clip files, extracts spectrogram peaks, and matches library tracks.'}
+          </p>
+        </div>
+
+        {/* Website-Style Timeline Track Container */}
+        <div className="relative">
+          {/* Timeline Nodes & Step Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
+            {timelineSteps.map((step, idx) => {
+              const StepIcon = step.icon;
+              return (
+                <div
+                  key={idx}
+                  className="flex md:flex-col items-center gap-4 md:gap-4 relative group"
+                >
+                  {/* Desktop Horizontal Spine Segment (Starts at Box 1 center, ends at Box 4 center) */}
+                  {idx < 3 && (
+                    <div
+                      className={`hidden md:block absolute top-7 -translate-y-1/2 left-1/2 w-[calc(100%+1.5rem)] h-0.5 z-0 pointer-events-none ${
+                        idx === 0
+                          ? 'bg-gradient-to-r from-orange-500 to-cyan-500'
+                          : idx === 1
+                          ? 'bg-gradient-to-r from-cyan-500 to-amber-500'
+                          : 'bg-gradient-to-r from-amber-500 to-emerald-500'
+                      }`}
+                    />
+                  )}
+
+                  {/* Mobile Vertical Spine Segment (Starts at Box 1 center, ends at Box 4 center) */}
+                  {idx < 3 && (
+                    <div
+                      className={`md:hidden absolute left-6 -translate-x-1/2 top-1/2 h-[calc(100%+1.5rem)] w-0.5 z-0 pointer-events-none ${
+                        idx === 0
+                          ? 'bg-gradient-to-b from-orange-500 to-cyan-500'
+                          : idx === 1
+                          ? 'bg-gradient-to-b from-cyan-500 to-amber-500'
+                          : 'bg-gradient-to-b from-amber-500 to-emerald-500'
+                      }`}
+                    />
+                  )}
+
+                  {/* Glowing Timeline Node Hub (Centered) */}
+                  <div className="relative shrink-0 z-10 md:mb-1">
+                    <div
+                      className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-zinc-950 border-2 flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 ${step.accent}`}
+                    >
+                      <StepIcon size={22} />
+                    </div>
+                  </div>
+
+                  {/* Card Content with Timeline Branch */}
+                  <div className="flex-1 w-full p-4 rounded-xl chassis-bay border border-zinc-800/80 group-hover:border-zinc-700 transition-colors z-10">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-mono text-[10px] font-bold text-orange-400 uppercase tracking-wider">
+                        {step.stage}
+                      </span>
+                      <span className="font-mono text-[9px] text-zinc-500 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800">
+                        {step.badge}
+                      </span>
+                    </div>
+                    <h5 className="text-sm font-bold text-white mb-1.5 group-hover:text-orange-400 transition-colors">
+                      {step.title}
+                    </h5>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      {step.desc}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
