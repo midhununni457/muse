@@ -15,10 +15,12 @@ import {
   HardDrive,
   FileAudio,
 } from 'lucide-react';
+import { useServerStatus } from '../context/ServerStatusContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export default function LibraryView() {
+  const { isReady } = useServerStatus();
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,6 +55,7 @@ export default function LibraryView() {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (!isReady) return;
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setAudioFile(e.dataTransfer.files[0]);
     }
@@ -61,6 +64,14 @@ export default function LibraryView() {
   useEffect(() => {
     fetchSongs();
   }, []);
+
+  // When server finishes cold-starting and becomes ready, refresh the songs list
+  useEffect(() => {
+    if (isReady) {
+      fetchSongs(false);
+    }
+  }, [isReady]);
+
 
   const fetchSongs = async (showFullLoading = true) => {
     if (showFullLoading) setLoading(true);
@@ -199,6 +210,13 @@ export default function LibraryView() {
         </div>
 
         <form onSubmit={handleUpload} className="flex flex-col gap-5">
+          {!isReady && (
+            <div className="p-3.5 rounded-xl chassis-bay border border-amber-500/30 bg-amber-500/5 flex items-center justify-center gap-2.5 text-amber-400 font-mono text-xs">
+              <RefreshCw size={14} className="animate-spin text-amber-400 shrink-0" />
+              <span>Waking up server & audio engine...</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-mono uppercase tracking-wider text-zinc-400 mb-1.5 font-bold">
@@ -207,10 +225,11 @@ export default function LibraryView() {
               <input
                 type="text"
                 value={title}
+                disabled={!isReady || isUploading}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Bohemian Rhapsody"
                 required
-                className="w-full px-4 py-2.5 rounded-xl chassis-bay text-white text-sm font-sans focus:outline-none focus:border-orange-500/80 transition-all placeholder:text-zinc-600"
+                className="w-full px-4 py-2.5 rounded-xl chassis-bay text-white text-sm font-sans focus:outline-none focus:border-orange-500/80 transition-all placeholder:text-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -221,10 +240,11 @@ export default function LibraryView() {
               <input
                 type="text"
                 value={artist}
+                disabled={!isReady || isUploading}
                 onChange={(e) => setArtist(e.target.value)}
                 placeholder="e.g. Queen"
                 required
-                className="w-full px-4 py-2.5 rounded-xl chassis-bay text-white text-sm font-sans focus:outline-none focus:border-orange-500/80 transition-all placeholder:text-zinc-600"
+                className="w-full px-4 py-2.5 rounded-xl chassis-bay text-white text-sm font-sans focus:outline-none focus:border-orange-500/80 transition-all placeholder:text-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -269,13 +289,18 @@ export default function LibraryView() {
                 type="file"
                 accept="audio/*"
                 id="library-audio-file-input"
+                disabled={!isReady || isUploading}
                 onChange={(e) => setAudioFile(e.target.files[0] || null)}
                 className="hidden"
               />
 
               <label
                 htmlFor="library-audio-file-input"
-                className="mt-1 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-lg text-xs font-mono uppercase tracking-wider cursor-pointer transition-all hover:border-orange-500/50"
+                className={`mt-1 px-4 py-2 bg-zinc-900 border border-zinc-700 text-zinc-200 rounded-lg text-xs font-mono uppercase tracking-wider transition-all ${
+                  !isReady || isUploading
+                    ? 'opacity-40 cursor-not-allowed pointer-events-none'
+                    : 'hover:bg-zinc-800 cursor-pointer hover:border-orange-500/50'
+                }`}
               >
                 {audioFile ? 'Change Audio File' : 'Browse Files'}
               </label>
@@ -291,7 +316,7 @@ export default function LibraryView() {
 
           <button
             type="submit"
-            disabled={isUploading}
+            disabled={!isReady || isUploading}
             className="self-start px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-mono text-xs uppercase tracking-widest font-bold rounded-xl shadow-lg shadow-orange-500/20 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed btn-hardware"
           >
             <Plus size={16} />

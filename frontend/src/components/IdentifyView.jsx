@@ -21,10 +21,12 @@ import {
   Cpu,
 } from 'lucide-react';
 import AudioVisualizer from './AudioVisualizer';
+import { useServerStatus } from '../context/ServerStatusContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export default function IdentifyView() {
+  const { isReady } = useServerStatus();
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'upload'
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -104,6 +106,7 @@ export default function IdentifyView() {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (!isReady) return;
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       setSelectedFile(file);
@@ -111,6 +114,7 @@ export default function IdentifyView() {
       setMatchResult(null);
     }
   };
+
 
   const startRecording = async () => {
     setErrorMsg(null);
@@ -368,6 +372,14 @@ export default function IdentifyView() {
               />
             </div>
 
+            {/* Warming Up Notice Banner */}
+            {!isReady && (
+              <div className="mb-6 p-3.5 rounded-xl chassis-bay border border-amber-500/30 bg-amber-500/5 flex items-center justify-center gap-2.5 text-amber-400 font-mono text-xs">
+                <RefreshCw size={14} className="animate-spin text-amber-400 shrink-0" />
+                <span>Waking up server & audio engine...</span>
+              </div>
+            )}
+
             {/* Mode 1: Microphone Recording Deck */}
             {activeTab === 'record' && (
               <div className="flex flex-col items-center justify-center p-6 sm:p-8 rounded-2xl chassis-bay border border-zinc-800/80 text-center relative">
@@ -376,7 +388,8 @@ export default function IdentifyView() {
                   {!isRecording ? (
                     <button
                       onClick={startRecording}
-                      disabled={isAnalyzing}
+                      disabled={!isReady || isAnalyzing}
+                      title={!isReady ? 'Waking up server & audio engine...' : 'Click to start recording'}
                       className="group relative w-28 h-28 rounded-full bg-gradient-to-b from-zinc-800 to-zinc-950 border-4 border-zinc-700/80 flex flex-col items-center justify-center text-white shadow-2xl hover:border-orange-500/80 active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed btn-hardware"
                     >
                       <div className="w-16 h-16 rounded-full bg-gradient-to-b from-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-500/30 group-hover:scale-105 transition-transform">
@@ -412,7 +425,9 @@ export default function IdentifyView() {
                     </div>
                   ) : (
                     <p className="text-xs text-zinc-400">
-                      Tap the button to start listening to the music around you
+                      {!isReady
+                        ? 'Controls will unlock as soon as the server is ready'
+                        : 'Tap the button to start listening to the music around you'}
                     </p>
                   )}
                 </div>
@@ -475,12 +490,17 @@ export default function IdentifyView() {
                     type="file"
                     accept="audio/*"
                     id="sample-upload-picker"
+                    disabled={!isReady || isAnalyzing}
                     onChange={handleFileChange}
                     className="hidden"
                   />
                   <label
                     htmlFor="sample-upload-picker"
-                    className="mt-1 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-lg text-xs font-mono uppercase tracking-wider cursor-pointer transition-all hover:border-orange-500/50"
+                    className={`mt-1 px-4 py-2 bg-zinc-900 border border-zinc-700 text-zinc-200 rounded-lg text-xs font-mono uppercase tracking-wider transition-all ${
+                      !isReady || isAnalyzing
+                        ? 'opacity-40 cursor-not-allowed pointer-events-none'
+                        : 'hover:bg-zinc-800 cursor-pointer hover:border-orange-500/50'
+                    }`}
                   >
                     {selectedFile ? 'Select Different File' : 'Browse Local Files'}
                   </label>
@@ -489,8 +509,8 @@ export default function IdentifyView() {
                 {selectedFile && (
                   <button
                     onClick={handleFileUpload}
-                    disabled={isAnalyzing}
-                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl text-xs font-mono uppercase tracking-widest font-bold shadow-lg shadow-orange-500/20 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 btn-hardware"
+                    disabled={!isReady || isAnalyzing}
+                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl text-xs font-mono uppercase tracking-widest font-bold shadow-lg shadow-orange-500/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 btn-hardware"
                   >
                     <Search size={16} />
                     <span>Identify Song</span>
@@ -498,6 +518,7 @@ export default function IdentifyView() {
                 )}
               </div>
             )}
+
 
             {/* Analyzing Progress Card */}
             {isAnalyzing && (

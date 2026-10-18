@@ -1,7 +1,10 @@
 import React from 'react';
 import { AudioWaveform, Disc, Sliders, Radio, Database } from 'lucide-react';
+import { useServerStatus } from '../context/ServerStatusContext';
 
 export default function Navbar({ activeTab, setActiveTab }) {
+  const { isReady, database, dsp } = useServerStatus();
+
   return (
     <header className="chassis-panel rounded-2xl p-4 md:px-6 mb-8 relative">
       {/* Decorative Hardware Corner Rivets */}
@@ -26,6 +29,11 @@ export default function Navbar({ activeTab, setActiveTab }) {
               <span className="font-mono text-[10px] tracking-wider px-2 py-0.5 rounded bg-orange-500/10 border border-orange-500/20 text-orange-400 font-semibold">
                 v1.0
               </span>
+              {!isReady && (
+                <span className="lg:hidden font-mono text-[10px] tracking-wider px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-semibold animate-pulse">
+                  WAKING UP...
+                </span>
+              )}
             </div>
             <p className="text-[11px] font-mono text-zinc-400 tracking-wider uppercase">
               Audio Recognition Engine
@@ -36,21 +44,50 @@ export default function Navbar({ activeTab, setActiveTab }) {
         {/* Live System Telemetry Status (Studio Rack Lights) */}
         <div className="hidden lg:flex items-center gap-4 px-3.5 py-1.5 rounded-xl chassis-bay font-mono text-[11px]">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 led-glow-emerald animate-pulse" />
+            <span
+              className={`w-2 h-2 rounded-full ${
+                dsp === 'connected'
+                  ? 'bg-emerald-500 led-glow-emerald animate-pulse'
+                  : 'bg-amber-500 led-glow-amber animate-pulse'
+              }`}
+            />
             <span className="text-zinc-400">ENGINE:</span>
-            <span className="text-emerald-400 font-medium">READY</span>
+            <span
+              className={`font-medium ${
+                dsp === 'connected' ? 'text-emerald-400' : 'text-amber-400 animate-pulse'
+              }`}
+            >
+              {dsp === 'connected' ? 'READY' : 'STARTING...'}
+            </span>
           </div>
+
           <div className="w-px h-3 bg-zinc-800" />
           <div className="flex items-center gap-1.5 text-zinc-400">
             <span>AUDIO:</span>
             <span className="text-zinc-200">44.1 kHz</span>
           </div>
+
           <div className="w-px h-3 bg-zinc-800" />
           <div className="flex items-center gap-1.5 text-zinc-400">
             <span>DATABASE:</span>
-            <span className="text-emerald-400 font-semibold">CONNECTED</span>
+            <span
+              className={`font-semibold ${
+                database === 'connected'
+                  ? 'text-emerald-400'
+                  : database === 'connecting'
+                  ? 'text-amber-400 animate-pulse'
+                  : 'text-red-400'
+              }`}
+            >
+              {database === 'connected'
+                ? 'CONNECTED'
+                : database === 'connecting'
+                ? 'CONNECTING...'
+                : 'OFFLINE'}
+            </span>
           </div>
         </div>
+
 
         {/* Tactile Hardware Mode Switcher */}
         <nav className="flex p-1 rounded-xl chassis-bay border border-zinc-800/80">
